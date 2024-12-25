@@ -221,40 +221,50 @@ def find_objects_with_multiple_constraints(collection, constraint_type='COPY_TRA
 def match_meshes(collection1, collection2, threshold):
     """
     Matches meshes from collection1 (corrupted) to collection2 (corrected).
-    Checks for multiple constraints after applying them.
+    Ensures multiple constraints are avoided and retries for alternate matches.
     """
     unmatched_meshes = []
-    
+    used_objects = set()  # Track objects that already have constraints
+
     for obj1 in collection1.objects:
         if obj1.type == 'MESH':
             obj1_vertex_count, obj1_center = get_vertex_count_and_center(obj1)
             best_match = None
             best_distance = float('inf')
-            
+
             # Loop through second collection to find best match
             for obj2 in collection2.objects:
-                if obj2.type == 'MESH':
+                if obj2.type == 'MESH' and obj2 not in used_objects:
                     obj2_vertex_count, obj2_center = get_vertex_count_and_center(obj2)
-                    
+
                     if obj1_vertex_count == obj2_vertex_count:
                         # Calculate the distance between centers
                         distance = (obj1_center - obj2_center).length
-                        
+
                         # Check if the distance is within the threshold and better than current best
                         if distance <= threshold and distance < best_distance:
-                            best_match = obj2
-                            best_distance = distance
-            
+                            # Check if this obj2 already has a matching constraint
+                            constraint_exists = False
+                            for c in obj2.constraints:
+                                if c.type == 'COPY_TRANSFORMS' and c.target == obj1:
+                                    constraint_exists = True
+                                    break
+
+                            if not constraint_exists:
+                                best_match = obj2
+                                best_distance = distance
+
             # If we found a best match, apply the constraint
             if best_match:
                 constraint = best_match.constraints.new(type='COPY_TRANSFORMS')
                 constraint.target = obj1
+                used_objects.add(best_match)  # Mark this object as used
                 logger.info(f"Matched {obj1.name} to {best_match.name} with distance {best_distance:.4f}.")
             else:
                 unmatched_meshes.append(obj1.name)
                 logger.warning(f"No match found for {obj1.name}.")
 
-    # After applying constraints, check for objects with multiple constraints in RDC
+    # Check for multiple constraints post-application
     rdc_collection = bpy.data.collections.get('RDC')
     if rdc_collection:
         problematic_objects = find_objects_with_multiple_constraints(rdc_collection)
@@ -262,6 +272,7 @@ def match_meshes(collection1, collection2, threshold):
             logger.warning(f"Objects with multiple constraints: {[obj.name for obj in problematic_objects]}")
 
     return unmatched_meshes
+
 
 # Function to hide objects with constraints and their targets
 def hide_objects_with_constraints():
