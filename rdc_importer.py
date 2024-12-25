@@ -64,8 +64,8 @@ def setup_logging(rdc_file_path):
         file_handler.setLevel(logging.DEBUG)
         logging.getLogger().addHandler(file_handler)
 
-# Save texture
-def save_texture(controller, texture_id, slot_index, rdc_file_path):
+# Save texture with slot name
+def save_texture(controller, texture_id, slot_name, rdc_file_path):
     texture = next((tex for tex in controller.GetTextures() if tex.resourceId == texture_id), None)
 
     if not texture:
@@ -88,7 +88,9 @@ def save_texture(controller, texture_id, slot_index, rdc_file_path):
     texture_id_numeric = int(str(texture_id).split("::")[-1])
     output_dir = os.path.join(os.path.dirname(rdc_file_path), os.path.splitext(os.path.basename(rdc_file_path))[0])
     os.makedirs(output_dir, exist_ok=True)
-    texture_filename = f"resourceFile_{texture_id_numeric}.dds"
+
+    # Use slot name in filename
+    texture_filename = f"resourceFile_{texture_id_numeric}_{slot_name}.dds"
     texture_path = os.path.join(output_dir, texture_filename)
 
     if os.path.exists(texture_path):
@@ -265,18 +267,26 @@ def extract_and_save_textures(controller, action, rdc_file_path):
     controller.SetFrameEvent(action.eventId, True)
     pipeline_state = controller.GetPipelineState()
     resources = pipeline_state.GetReadOnlyResources(rd.ShaderStage.Fragment)
+    reflection = pipeline_state.GetShaderReflection(rd.ShaderStage.Fragment)
 
-    for texture_bind in range(8):
-        if texture_bind >= len(resources) or not resources[texture_bind].resources:
+    for bind in range(len(resources)):
+        if bind >= len(resources) or not resources[bind].resources:
             continue
 
-        texture_id = resources[texture_bind].resources[0].resourceId
+        texture_id = resources[bind].resources[0].resourceId
         if texture_id == rd.ResourceId.Null():
             continue
 
-        texture_path = save_texture(controller, texture_id, action.eventId, rdc_file_path)
+        # Extract slot name using reflection
+        slot_name = reflection.readOnlyResources[bind].name if bind < len(reflection.readOnlyResources) else None
+
+        # Skip extraction if no slot name or slot is not "tx"
+        if not slot_name or not slot_name.startswith("tx") or "txCube" in slot_name:
+            continue
+
+        texture_path = save_texture(controller, texture_id, slot_name, rdc_file_path)
         if texture_path:
-            textures.append(texture_path)
+            textures.append((slot_name, texture_path))
 
     return textures
 
