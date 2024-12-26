@@ -270,6 +270,8 @@ def extract_and_save_textures(controller, action, rdc_file_path):
     resources = pipeline_state.GetReadOnlyResources(rd.ShaderStage.Fragment)
     reflection = pipeline_state.GetShaderReflection(rd.ShaderStage.Fragment)
 
+    logging.info(f"Current action = {action}")
+
     if reflection is None:
         logging.warning(f"No shader reflection for action {action.eventId}. Skipping texture extraction.")
         return textures  # Skip if no reflection
