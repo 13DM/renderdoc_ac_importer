@@ -509,7 +509,7 @@ def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id, manual_r
 
     actions = controller.GetRootActions()
     for action in actions:
-        if action.eventId in valid_actions or max_action_id == -1:
+        if action.eventId in valid_actions: # or max_action_id == -1:
             process_action(controller, action, min_action_id, max_action_id, rdc_file_path)
 
     controller.Shutdown()
