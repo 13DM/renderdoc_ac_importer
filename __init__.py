@@ -96,21 +96,21 @@ class RENDERDOC_PT_ACImporter(bpy.types.Panel):
 class RENDERDOC_OT_RunImport(bpy.types.Operator):
     bl_idname = "renderdoc_ac_importer.run_import"
     bl_label = "Run RDC Import"
-    bl_description = "Import a RenderDoc Capture (RDC) file into blender. Be sure to set the action id values if needed"
+    bl_description = "Import RenderDoc Capture file into Blender."
 
     def execute(self, context):
         scene = context.scene
         rdc_file_path = scene.rdc_file_path
         min_action_id = scene.min_action_id if scene.max_action_id >= 0 else None
         max_action_id = scene.max_action_id
+        manual_ranges = scene.manual_action_ranges if max_action_id == -1 else ""
 
         if not rdc_file_path:
             self.report({'ERROR'}, "Please select an RDC file.")
             return {'CANCELLED'}
 
-        # Call the main import function using the user-specified parameters
-        import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id)
-        
+        # Call the mane function to bring the files in
+        import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id, manual_ranges)
         return {'FINISHED'}
 
 # Function to handle file selection
