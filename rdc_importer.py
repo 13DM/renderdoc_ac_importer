@@ -466,8 +466,7 @@ def parse_action_ranges(range_str):
     except ValueError:
         logging.error(f"Invalid range format: {range_str}")
 
-    for ln in ranges:
-        logging.info(f"Valid range provided: {ranges[ln]}")
+    logging.info(f"Valid range provided: {len(ranges)}")
     
     return ranges
 
