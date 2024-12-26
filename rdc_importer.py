@@ -279,7 +279,7 @@ def extract_and_save_textures(controller, action, rdc_file_path):
             continue
 
         # Extract slot name using reflection
-        if reflection:
+        if reflection.readOnlyResources[bind]:
             slot_name = reflection.readOnlyResources[bind].name if bind < len(reflection.readOnlyResources) else None
         else:
             slot_name = None
