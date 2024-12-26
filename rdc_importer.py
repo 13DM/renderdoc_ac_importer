@@ -267,14 +267,23 @@ def extract_and_save_textures(controller, action, rdc_file_path):
     textures = []
     controller.SetFrameEvent(action.eventId, True)
     pipeline_state = controller.GetPipelineState()
+
+    if not pipeline_state:
+        logging.error(f"Failed to get pipeline state for action {action.eventId}. Skipping.")
+        return textures
+    
     resources = pipeline_state.GetReadOnlyResources(rd.ShaderStage.Fragment)
     reflection = pipeline_state.GetShaderReflection(rd.ShaderStage.Fragment)
 
-    logging.info(f"Current action = {action}")
+    if resources is None:
+        logging.warning(f"No resources bound for action {action.eventId}. Skipping.")
+        return textures
 
     if reflection is None:
         logging.warning(f"No shader reflection for action {action.eventId}. Skipping texture extraction.")
-        return textures  # Skip if no reflection
+        return textures
+
+    logging.info(f"Current action = {action.eventId}")
 
     for bind in range(len(resources)):
         if bind >= len(resources) or not resources[bind].resources:
@@ -473,8 +482,8 @@ def parse_action_ranges(range_str):
     except ValueError:
         logging.error(f"Invalid range format: {range_str}")
 
-    for i in ranges:
-        logging.info(f"Valid range provided: {i}")
+    #for i in ranges:
+    #    logging.info(f"Valid range provided: {i}")
     
     return ranges
 
