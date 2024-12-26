@@ -502,16 +502,31 @@ def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id, manual_r
 
     # Determine action ID list based on user input
     valid_actions = set()
-    if max_action_id == -1 and manual_ranges:
-        valid_actions = set(parse_action_ranges(manual_ranges))
+
+    if max_action_id == -1:
+        if manual_ranges:
+            valid_actions = set(parse_action_ranges(manual_ranges))
+        else:
+            # Collect all actions if no specific range or manual_ranges
+            actions = controller.GetRootActions()
+            valid_actions = {action.eventId for action in actions}
     else:
+        # Use min/max action range if provided
         valid_actions = set(range(min_action_id, max_action_id + 1))
 
+    # Log which actions are valid for debugging
+    logging.info(f"Valid actions to process: {sorted(valid_actions)}")
+
+    # Process the valid actions
     actions = controller.GetRootActions()
     for action in actions:
-        if action.eventId in valid_actions: # or max_action_id == -1:
+        if action.eventId in valid_actions:
+            logging.info(f"Processing action: {action.eventId}")
             process_action(controller, action, min_action_id, max_action_id, rdc_file_path)
+        else:
+            logging.info(f"Skipping action: {action.eventId}")
 
     controller.Shutdown()
     cap.Shutdown()
     logging.info("Import completed and controller shut down.")
+
