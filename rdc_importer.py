@@ -284,6 +284,8 @@ def extract_and_save_textures(controller, action, rdc_file_path):
         return textures
 
     logging.info(f"Current action = {action.eventId}")
+    
+
 
     for bind in range(len(resources)):
         if bind >= len(resources) or not resources[bind].resources:
