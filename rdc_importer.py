@@ -270,6 +270,10 @@ def extract_and_save_textures(controller, action, rdc_file_path):
     resources = pipeline_state.GetReadOnlyResources(rd.ShaderStage.Fragment)
     reflection = pipeline_state.GetShaderReflection(rd.ShaderStage.Fragment)
 
+    if reflection is None:
+        logging.warning(f"No shader reflection for action {action.eventId}. Skipping texture extraction.")
+        return textures  # Skip if no reflection
+
     for bind in range(len(resources)):
         if bind >= len(resources) or not resources[bind].resources:
             continue
@@ -279,10 +283,7 @@ def extract_and_save_textures(controller, action, rdc_file_path):
             continue
 
         # Extract slot name using reflection
-        if reflection.readOnlyResources[bind]:
-            slot_name = reflection.readOnlyResources[bind].name if bind < len(reflection.readOnlyResources) else None
-        else:
-            slot_name = None
+        slot_name = reflection.readOnlyResources[bind].name if bind < len(reflection.readOnlyResources) else None
 
         # Skip extraction if no slot name or slot is not "tx"
         if not slot_name or not slot_name.startswith("tx") or "txCube" in slot_name:
@@ -293,6 +294,7 @@ def extract_and_save_textures(controller, action, rdc_file_path):
             textures.append((slot_name, texture_path))
 
     return textures
+
 
 # Extract and import mesh
 def extract_and_import_mesh(controller, action):
