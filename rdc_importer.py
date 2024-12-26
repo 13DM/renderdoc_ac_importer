@@ -249,15 +249,16 @@ def assign_textures_to_nodes(material, textures):
         if i < len(img_tex_node_names):
             img_tex_node_name = img_tex_node_names[i]
             img_tex_node = material.node_tree.nodes.get(img_tex_node_name)
+            slotName, tpath = tex_path
 
-            if img_tex_node and os.path.exists(tex_path):
-                image_name = os.path.basename(tex_path)
+            if img_tex_node and os.path.exists(tpath):
+                image_name = os.path.basename(tpath)
                 if image_name in bpy.data.images:
                     image = bpy.data.images[image_name]
                 else:
-                    image = bpy.data.images.load(tex_path)
+                    image = bpy.data.images.load(tpath)
                 img_tex_node.image = image
-                logging.info(f"Assigned texture {tex_path} to node {img_tex_node_name}")
+                logging.info(f"Assigned texture {tpath} to node {img_tex_node_name}")
 
 # Extract and save textures
 def extract_and_save_textures(controller, action, rdc_file_path):
