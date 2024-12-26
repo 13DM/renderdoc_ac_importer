@@ -64,8 +64,8 @@ def setup_logging(rdc_file_path):
         file_handler.setLevel(logging.DEBUG)
         logging.getLogger().addHandler(file_handler)
 
-# Save texture with slot name
-def save_texture(controller, texture_id, slot_name, rdc_file_path):
+# Save texture
+def save_texture(controller, texture_id, slot_index, rdc_file_path):
     texture = next((tex for tex in controller.GetTextures() if tex.resourceId == texture_id), None)
 
     if not texture:
@@ -88,9 +88,7 @@ def save_texture(controller, texture_id, slot_name, rdc_file_path):
     texture_id_numeric = int(str(texture_id).split("::")[-1])
     output_dir = os.path.join(os.path.dirname(rdc_file_path), os.path.splitext(os.path.basename(rdc_file_path))[0])
     os.makedirs(output_dir, exist_ok=True)
-
-    # Use slot name in filename
-    texture_filename = f"resourceFile_{texture_id_numeric}_{slot_name}.dds"
+    texture_filename = f"resourceFile_{texture_id_numeric}.dds"
     texture_path = os.path.join(output_dir, texture_filename)
 
     if os.path.exists(texture_path):
@@ -267,26 +265,18 @@ def extract_and_save_textures(controller, action, rdc_file_path):
     controller.SetFrameEvent(action.eventId, True)
     pipeline_state = controller.GetPipelineState()
     resources = pipeline_state.GetReadOnlyResources(rd.ShaderStage.Fragment)
-    reflection = pipeline_state.GetShaderReflection(rd.ShaderStage.Fragment)
 
-    for bind in range(len(resources)):
-        if bind >= len(resources) or not resources[bind].resources:
+    for texture_bind in range(8):
+        if texture_bind >= len(resources) or not resources[texture_bind].resources:
             continue
 
-        texture_id = resources[bind].resources[0].resourceId
+        texture_id = resources[texture_bind].resources[0].resourceId
         if texture_id == rd.ResourceId.Null():
             continue
 
-        # Extract slot name using reflection
-        slot_name = reflection.readOnlyResources[bind].name if bind < len(reflection.readOnlyResources) else None
-
-        # Skip extraction if no slot name or slot is not "tx"
-        if not slot_name or not slot_name.startswith("tx") or "txCube" in slot_name:
-            continue
-
-        texture_path = save_texture(controller, texture_id, slot_name, rdc_file_path)
+        texture_path = save_texture(controller, texture_id, action.eventId, rdc_file_path)
         if texture_path:
-            textures.append((slot_name, texture_path))
+            textures.append(texture_path)
 
     return textures
 
@@ -452,8 +442,23 @@ def process_action(controller, action, min_action_id, max_action_id, rdc_file_pa
         else:
             obj.data.materials.append(material)
 
+# Function to split the provided ranges on import
+def parse_action_ranges(range_str):
+    ranges = []
+    if not range_str.strip():
+        return ranges
+
+    try:
+        for part in range_str.split(';'):
+            start, end = map(int, part.split('-'))
+            ranges.extend(range(start, end + 1))
+    except ValueError:
+        logging.error(f"Invalid range format: {range_str}")
+    
+    return ranges
+
 # Import meshes from RDC
-def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id):
+def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id, manual_ranges):
     setup_logging(rdc_file_path)
     cap = rd.OpenCaptureFile()
     status = cap.OpenFile(rdc_file_path, '', None)
@@ -465,9 +470,17 @@ def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id):
     if status != rd.ReplayStatus.Succeeded:
         raise RuntimeError(f'Failed to initialize replay: {status}')
 
+    # Determine action ID list based on user input
+    valid_actions = set()
+    if max_action_id == -1 and manual_ranges:
+        valid_actions = set(parse_action_ranges(manual_ranges))
+    else:
+        valid_actions = set(range(min_action_id, max_action_id + 1))
+
     actions = controller.GetRootActions()
     for action in actions:
-        process_action(controller, action, min_action_id, max_action_id, rdc_file_path)
+        if action.eventId in valid_actions or max_action_id == -1:
+            process_action(controller, action, min_action_id, max_action_id, rdc_file_path)
 
     controller.Shutdown()
     cap.Shutdown()
