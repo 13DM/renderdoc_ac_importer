@@ -267,8 +267,25 @@ def extract_and_save_textures(controller, action, rdc_file_path):
     textures = []
     controller.SetFrameEvent(action.eventId, True)
     pipeline_state = controller.GetPipelineState()
+
+    if not pipeline_state:
+        logging.error(f"Failed to get pipeline state for action {action.eventId}. Skipping.")
+        return textures
+    
     resources = pipeline_state.GetReadOnlyResources(rd.ShaderStage.Fragment)
     reflection = pipeline_state.GetShaderReflection(rd.ShaderStage.Fragment)
+
+    if resources is None:
+        logging.warning(f"No resources bound for action {action.eventId}. Skipping.")
+        return textures
+
+    if reflection is None:
+        logging.warning(f"No shader reflection for action {action.eventId}. Skipping texture extraction.")
+        return textures
+
+    logging.info(f"Current action = {action.eventId}")
+    
+
 
     for bind in range(len(resources)):
         if bind >= len(resources) or not resources[bind].resources:
@@ -290,6 +307,7 @@ def extract_and_save_textures(controller, action, rdc_file_path):
             textures.append((slot_name, texture_path))
 
     return textures
+
 
 # Extract and import mesh
 def extract_and_import_mesh(controller, action):
@@ -453,8 +471,26 @@ def process_action(controller, action, min_action_id, max_action_id, rdc_file_pa
         else:
             obj.data.materials.append(material)
 
+# Function to split the provided ranges on import
+def parse_action_ranges(range_str):
+    ranges = []
+    if not range_str.strip():
+        return ranges
+
+    try:
+        for part in range_str.split(';'):
+            start, end = map(int, part.split('-'))
+            ranges.extend(range(start, end + 1))
+    except ValueError:
+        logging.error(f"Invalid range format: {range_str}")
+
+    #for i in ranges:
+    #    logging.info(f"Valid range provided: {i}")
+    
+    return ranges
+
 # Import meshes from RDC
-def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id):
+def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id, manual_ranges):
     setup_logging(rdc_file_path)
     cap = rd.OpenCaptureFile()
     status = cap.OpenFile(rdc_file_path, '', None)
@@ -466,10 +502,33 @@ def import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id):
     if status != rd.ReplayStatus.Succeeded:
         raise RuntimeError(f'Failed to initialize replay: {status}')
 
+    # Determine action ID list based on user input
+    valid_actions = set()
+
+    if max_action_id == -1:
+        if manual_ranges:
+            valid_actions = set(parse_action_ranges(manual_ranges))
+        else:
+            # Collect all actions if no specific range or manual_ranges
+            actions = controller.GetRootActions()
+            valid_actions = {action.eventId for action in actions}
+    else:
+        # Use min/max action range if provided
+        valid_actions = set(range(min_action_id, max_action_id + 1))
+
+    # Log which actions are valid for debugging
+    logging.info(f"Valid actions to process: {sorted(valid_actions)}")
+
+    # Process the valid actions
     actions = controller.GetRootActions()
     for action in actions:
-        process_action(controller, action, min_action_id, max_action_id, rdc_file_path)
+        if action.eventId in valid_actions:
+            logging.info(f"Processing action: {action.eventId}")
+            process_action(controller, action, min_action_id, max_action_id, rdc_file_path)
+        else:
+            logging.info(f"Skipping action: {action.eventId}")
 
     controller.Shutdown()
     cap.Shutdown()
     logging.info("Import completed and controller shut down.")
+

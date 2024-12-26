@@ -1,20 +1,20 @@
 bl_info = {
     "name": "RenderDoc Asset Importer",
     "author": "Dad",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > RDAC"
 }
 
 import bpy
 import os
-from .rdc_importer import import_meshes_from_rdc
+from .rdc_importer import import_meshes_from_rdc # RD capture importer logic
 from .fbx_importer import ImportFBXOperator  # Import the FBX operator
-from .mesh_matcher import MatchMeshesOperator, ApplyMaterialsConstraintsOperator, HideConstraintObjectsOperator, ShowConstraintObjectsOperator, ManualMatchOperator
+from .mesh_matcher import MatchMeshesOperator, ApplyMaterialsConstraintsOperator, HideConstraintObjectsOperator, ShowConstraintObjectsOperator, ManualMatchOperator # Matching and materials logic
 from .mesh_renamer import OBJECT_OT_RenameAndReparentMeshes  # Import the new renaming and reparenting operator
 from .ini_processor import main_ini_processer  # Import the main function for INI processing
 
-# Define a new operator for reading and processing the INI file
+# Operator for reading and processing the INI file
 class OBJECT_OT_ReadINI(bpy.types.Operator):
     bl_idname = "object.read_ini"
     bl_label = "Read and Process INI"
@@ -32,7 +32,7 @@ class OBJECT_OT_ReadINI(bpy.types.Operator):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
-# Define the RenderDoc Asset Importer panel
+# RenderDoc Asset Importer panel
 class RENDERDOC_PT_ACImporter(bpy.types.Panel):
     bl_label = "RenderDoc Asset Importer"
     bl_idname = "RENDERDOC_PT_ac_importer"
@@ -51,9 +51,12 @@ class RENDERDOC_PT_ACImporter(bpy.types.Panel):
         # Max action number input
         layout.prop(scene, "max_action_id", text="Max Action ID")
         
-        # Min action number input (conditionally visible)
+        # Min action number input (conditionally visible) based on the max action id
+        # if not set, then display the range provider to select multiple ranges
         if scene.max_action_id >= 0:
             layout.prop(scene, "min_action_id", text="Min Action ID")
+        else:
+            layout.prop(scene, "manual_action_ranges", text="Action Ranges")
 
         # Button to run the import process
         layout.separator()
@@ -89,25 +92,25 @@ class RENDERDOC_PT_ACImporter(bpy.types.Panel):
         layout.label(text="INI File Processing:")
         layout.operator("object.read_ini", text="Process INI File")
 
-# Operator to run the import process
+# Operator to run the import process for the Renderdoc file
 class RENDERDOC_OT_RunImport(bpy.types.Operator):
     bl_idname = "renderdoc_ac_importer.run_import"
     bl_label = "Run RDC Import"
-    bl_description = "Import a RenderDoc Capture (RDC) file into blender. Be sure to set the action id values if needed"
+    bl_description = "Import RenderDoc Capture file into Blender."
 
     def execute(self, context):
         scene = context.scene
         rdc_file_path = scene.rdc_file_path
         min_action_id = scene.min_action_id if scene.max_action_id >= 0 else None
         max_action_id = scene.max_action_id
+        manual_ranges = scene.manual_action_ranges if max_action_id == -1 else ""
 
         if not rdc_file_path:
             self.report({'ERROR'}, "Please select an RDC file.")
             return {'CANCELLED'}
 
-        # Call the main import function using the user-specified parameters
-        import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id)
-        
+        # Call the mane function to bring the files in
+        import_meshes_from_rdc(rdc_file_path, min_action_id, max_action_id, manual_ranges)
         return {'FINISHED'}
 
 # Function to handle file selection
@@ -139,6 +142,12 @@ def init_properties():
         min=-1
     )
 
+    bpy.types.Scene.manual_action_ranges = bpy.props.StringProperty(
+        name="Manual Ranges",
+        description="Specify action ranges (e.g., 1-200;500-685).",
+        default=""
+    )
+
     bpy.types.Scene.matching_threshold = bpy.props.FloatProperty(
         name="Matching Threshold",
         description="Threshold for matching RenderDoc meshes to the loaded kn5. The lower the number, the more accurate the matches should be. Set higher for less accuracy but more matches",
@@ -159,6 +168,7 @@ def clear_properties():
     del bpy.types.Scene.max_action_id
     del bpy.types.Scene.matching_threshold
     del bpy.types.Scene.debug_flag
+    del bpy.types.Scene.manual_action_ranges
 
 # Register and Unregister functions
 classes = [
